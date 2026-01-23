@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>64張記憶翻牌大挑戰</title>
+    <!-- 引入 FontAwesome 用於卡牌圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-back-color: #8e44ad;
+            /* 紫色 */
+            --card-front-color: #2c3e50;
+            --text-color: #ecf0f1;
+            --accent-color: #9b59b6;
+            --match-color: #27ae60;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 15px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            color: var(--accent-color);
+            text-shadow: 0 0 10px rgba(155, 89, 182, 0.5);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            font-size: 1rem;
+            background: #1a1a1a;
+            padding: 8px 20px;
+            border-radius: 50px;
+            border: 1px solid #333;
+        }
+
+        .stats span {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 700px;
+            /* 稍微加寬以容納8列 */
+            perspective: 1000px;
+        }
+
+        .grid {
+            display: grid;
+            /* 8列網格 */
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            /* 縮小間距 */
+            width: 100%;
+        }
+
+        /* 卡牌樣式 */
+        .card {
+            background-color: transparent;
+            aspect-ratio: 1 / 1;
+            /* 保持正方形 */
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+            cursor: default;
+        }
+
+        .card.matched {
+            animation: pulse 0.5s ease-in-out;
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            /* 稍微圓角小一點 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            font-size: 1.4rem;
+            /* 字體縮小 */
+        }
+
+        /* 卡背 (紫色) */
+        .card-front {
+            background-color: var(--card-back-color);
+            background-image: linear-gradient(135deg, #8e44ad 25%, #9b59b6 25%, #9b59b6 50%, #8e44ad 50%, #8e44ad 75%, #9b59b6 75%, #9b59b6 100%);
+            background-size: 15px 15px;
+            /* 紋理縮小 */
+            border: 1px solid #a569bd;
+            color: white;
+        }
+
+        /* 卡背中間加個問號圖示 */
+        .card-front::after {
+            content: '?';
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: bold;
+        }
+
+        /* 卡面 (翻開後) */
+        .card-back {
+            background-color: var(--card-front-color);
+            color: var(--text-color);
+            transform: rotateY(180deg);
+            border: 1px solid var(--accent-color);
+        }
+
+        /* 按鈕樣式 */
+        .btn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #7d3c98;
+        }
+
+        /* 模態框 (勝利畫面) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: #1a1a1a;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid var(--accent-color);
+            box-shadow: 0 0 30px rgba(142, 68, 173, 0.5);
+            max-width: 90%;
+            width: 400px;
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: var(--accent-color);
+        }
+
+        .modal-content p {
+            margin: 15px 0;
+            font-size: 1.2rem;
+        }
+
+        .score-highlight {
+            color: #f1c40f;
+            font-weight: bold;
+            font-size: 1.4rem;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1) rotateY(180deg);
+            }
+
+            50% {
+                transform: scale(1.15) rotateY(180deg);
+                box-shadow: 0 0 15px var(--match-color);
+            }
+
+            100% {
+                transform: scale(1) rotateY(180deg);
+            }
+        }
+
+        /* 手機適配 */
+        @media (max-width: 600px) {
+            .grid {
+                gap: 4px;
+            }
+
+            .card-face {
+                font-size: 1rem;
+                /* 手機上更小 */
+                border-radius: 2px;
+            }
+
+            .card-front::after {
+                font-size: 0.8rem;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+            }
+
+            .game-container {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>64張 記憶翻牌大挑戰</h1>
+        <div class="stats">
+            <div>步數: <span id="moves">0</span></div>
+            <div>時間: <span id="time">00:00</span></div>
+        </div>
+    </header>
+
+    <main class="game-container">
+        <div class="grid" id="game-grid">
+            <!-- 卡牌將由 JavaScript 生成 -->
+        </div>
+        <div style="text-align: center;">
+            <button class="btn" onclick="restartGame()">重新開始</button>
+        </div>
+    </main>
+
+    <!-- 勝利彈窗 -->
+    <div class="modal-overlay" id="win-modal">
+        <div class="modal-content">
+            <h2><i class="fas fa-trophy"></i> 恭喜通關！</h2>
+            <p>你在這場記憶大戰中獲勝了！</p>
+            <p>總共步數: <span id="final-moves" class="score-highlight">0</span></p>
+            <p>耗費時間: <span id="final-time" class="score-highlight">00:00</span></p>
+            <button class="btn" onclick="closeModalAndRestart()">再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        // 64張卡 = 32對
+        const icons = [
+            'fa-ghost', 'fa-dragon', 'fa-hat-wizard', 'fa-dungeon', 'fa-scroll', 'fa-ring', 'fa-gem', 'fa-crown',
+            'fa-skull', 'fa-key', 'fa-fire', 'fa-spider', 'fa-bat', 'fa-bolt', 'fa-star', 'fa-moon',
+            'fa-sun', 'fa-cloud', 'fa-snowflake', 'fa-crow', 'fa-cat', 'fa-frog', 'fa-fish', 'fa-shield',
+            'fa-bomb', 'fa-rocket', 'fa-chess-rook', 'fa-chess-knight', 'fa-chess-pawn', 'fa-dice', 'fa-flask', 'fa-bug'
+        ];
+
+        let cards = [];
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let moves = 0;
+        let timer = null;
+        let seconds = 0;
+        let isLocked = false;
+
+        const gridElement = document.getElementById('game-grid');
+        const movesElement = document.getElementById('moves');
+        const timeElement = document.getElementById('time');
+        const modalElement = document.getElementById('win-modal');
+        const finalMovesElement = document.getElementById('final-moves');
+        const finalTimeElement = document.getElementById('final-time');
+
+        // 初始化遊戲
+        function initGame() {
+            matchedPairs = 0;
+            moves = 0;
+            seconds = 0;
+            flippedCards = [];
+            isLocked = false;
+
+            movesElement.textContent = moves;
+            timeElement.textContent = '00:00';
+            clearInterval(timer);
+            startTimer();
+
+            // 複製兩份形成配對
+            cards = [...icons, ...icons];
+
+            // 洗牌 (Fisher-Yates 演算法)
+            for (let i = cards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cards[i], cards[j]] = [cards[j], cards[i]];
+            }
+
+            // 渲染網格
+            gridElement.innerHTML = '';
+            cards.forEach((icon, index) => {
+                const card = createCard(icon, index);
+                gridElement.appendChild(card);
+            });
+        }
+
+        // 創建卡牌
+        function createCard(iconClass, index) {
+            const card = document.createElement('div');
+            card.classList.add('card');
+            card.dataset.icon = iconClass;
+            card.dataset.index = index;
+
+            const frontFace = document.createElement('div');
+            frontFace.classList.add('card-face', 'card-front');
+
+            const backFace = document.createElement('div');
+            backFace.classList.add('card-face', 'card-back');
+            const icon = document.createElement('i');
+            icon.classList.add('fas', iconClass);
+            backFace.appendChild(icon);
+
+            card.appendChild(frontFace);
+            card.appendChild(backFace);
+
+            card.addEventListener('click', flipCard);
+            return card;
+        }
+
+        // 翻牌
+        function flipCard() {
+            if (isLocked) return;
+            if (this === flippedCards[0]) return;
+            if (this.classList.contains('matched')) return;
+
+            this.classList.add('flipped');
+            flippedCards.push(this);
+
+            if (flippedCards.length === 2) {
+                incrementMoves();
+                checkForMatch();
+            }
+        }
+
+        // 檢查配對
+        function checkForMatch() {
+            isLocked = true;
+
+            const [card1, card2] = flippedCards;
+            const isMatch = card1.dataset.icon === card2.dataset.icon;
+
+            if (isMatch) {
+                disableCards();
+            } else {
+                unflipCards();
+            }
+        }
+
+        // 配對成功
+        function disableCards() {
+            flippedCards[0].classList.add('matched');
+            flippedCards[1].classList.add('matched');
+
+            flippedCards[0].removeEventListener('click', flipCard);
+            flippedCards[1].removeEventListener('click', flipCard);
+
+            matchedPairs++;
+            flippedCards = [];
+            isLocked = false;
+
+            if (matchedPairs === icons.length) {
+                endGame();
+            }
+        }
+
+        // 配對失敗
+        function unflipCards() {
+            setTimeout(() => {
+                flippedCards[0].classList.remove('flipped');
+                flippedCards[1].classList.remove('flipped');
+                flippedCards = [];
+                isLocked = false;
+            }, 800); // 稍微縮短等待時間，加快64張卡的遊戲節奏
+        }
+
+        // 增加步數
+        function incrementMoves() {
+            moves++;
+            movesElement.textContent = moves;
+        }
+
+        // 計時器
+        function startTimer() {
+            timer = setInterval(() => {
+                seconds++;
+                const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const secs = (seconds % 60).toString().padStart(2, '0');
+                timeElement.textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        // 結束遊戲
+        function endGame() {
+            clearInterval(timer);
+            setTimeout(() => {
+                finalMovesElement.textContent = moves;
+                finalTimeElement.textContent = timeElement.textContent;
+                modalElement.classList.add('show');
+            }, 500);
+        }
+
+        // 重開
+        function restartGame() {
+            modalElement.classList.remove('show');
+            initGame();
+        }
+
+        function closeModalAndRestart() {
+            restartGame();
+        }
+
+        document.addEventListener('DOMContentLoaded', initGame);
+
+    </script>
+</body>
+
+</html>
+```
